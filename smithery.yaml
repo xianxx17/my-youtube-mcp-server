@@ -1,0 +1,23 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - youtubeApiKey
+    properties:
+      youtubeApiKey:
+        type: string
+        description: YouTube Data API key
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: { ...process.env, YOUTUBE_API_KEY: config.youtubeApiKey }
+    })
+  exampleConfig:
+    youtubeApiKey: your_dummy_youtube_api_key
