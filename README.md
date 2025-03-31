@@ -1,5 +1,7 @@
 # YouTube MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@coyaSONG/youtube-mcp-server)](https://smithery.ai/server/@coyaSONG/youtube-mcp-server)
+
 A Model Context Protocol (MCP) server for interacting with YouTube data. This server provides resources and tools to query YouTube videos, channels, and comments through stdio interface.
 
 ## Features
@@ -17,6 +19,15 @@ A Model Context Protocol (MCP) server for interacting with YouTube data. This se
 
 ## Installation
 
+### Installing via Smithery
+
+To install YouTube MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@coyaSONG/youtube-mcp-server):
+
+```bash
+npx -y @smithery/cli install @coyaSONG/youtube-mcp-server --client claude
+```
+
+### Installing Manually
 1. Clone this repository:
    ```bash
    git clone https://github.com/yourusername/youtube-mcp-server.git
