@@ -1,0 +1,36 @@
+{
+  "name": "youtube-mcp-server",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "prebuild": "rm -rf dist && mkdir -p dist",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "test:stdio": "node dist/test-stdio-client.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coyaSONG/youtube-mcp-server.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/coyaSONG/youtube-mcp-server/issues"
+  },
+  "homepage": "https://github.com/coyaSONG/youtube-mcp-server#readme",
+  "description": "",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "dotenv": "^16.4.7",
+    "googleapis": "^148.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  }
+}
