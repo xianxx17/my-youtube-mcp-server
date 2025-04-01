@@ -1,5 +1,6 @@
 import { google, youtube_v3 } from 'googleapis';
 import dotenv from 'dotenv';
+import { getSubtitles } from 'youtube-captions-scraper';
 
 dotenv.config();
 
@@ -71,6 +72,22 @@ export class YouTubeService {
       return response.data;
     } catch (error) {
       console.error('Error getting comments:', error);
+      throw error;
+    }
+  }
+
+  async getTranscript(videoId: string, language?: string): Promise<{ text: string, duration: number, offset: number }[]> {
+    try {
+      const options: { videoID: string, lang?: string } = { videoID: videoId };
+      
+      if (language) {
+        options.lang = language;
+      }
+      
+      const captions = await getSubtitles(options);
+      return captions;
+    } catch (error) {
+      console.error('Error getting video transcript:', error);
       throw error;
     }
   }
