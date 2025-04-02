@@ -21,13 +21,35 @@ export class YouTubeService {
     });
   }
 
-  async searchVideos(query: string, maxResults: number = 10): Promise<youtube_v3.Schema$SearchListResponse> {
+  async searchVideos(
+    query: string, 
+    maxResults: number = 10,
+    options: {
+      channelId?: string;
+      order?: string;
+      type?: string;
+      videoDuration?: string;
+      publishedAfter?: string;
+      publishedBefore?: string;
+      videoCaption?: string;
+      videoDefinition?: string;
+      regionCode?: string;
+    } = {}
+  ): Promise<youtube_v3.Schema$SearchListResponse> {
     try {
       const response = await this.youtube.search.list({
         part: ['snippet'],
         q: query,
         maxResults,
-        type: ['video'],
+        type: options.type ? [options.type] : ['video'],
+        channelId: options.channelId,
+        order: options.order,
+        videoDuration: options.videoDuration,
+        publishedAfter: options.publishedAfter,
+        publishedBefore: options.publishedBefore,
+        videoCaption: options.videoCaption,
+        videoDefinition: options.videoDefinition,
+        regionCode: options.regionCode
       });
       return response.data;
     } catch (error) {
