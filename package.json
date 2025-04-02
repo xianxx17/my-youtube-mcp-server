@@ -1,8 +1,11 @@
 {
-  "name": "youtube-mcp-server",
+  "name": "@coyasong/youtube-mcp-server",
   "version": "1.0.0",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "youtube-mcp-server": "./dist/index.js"
+  },
   "scripts": {
     "clean": "rm -rf dist",
     "prebuild": "rm -rf dist && mkdir -p dist",
