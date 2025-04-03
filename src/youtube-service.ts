@@ -12,7 +12,7 @@ if (!YOUTUBE_API_KEY) {
 }
 
 export class YouTubeService {
-  private youtube: youtube_v3.Youtube;
+  public youtube: youtube_v3.Youtube;
 
   constructor() {
     this.youtube = google.youtube({

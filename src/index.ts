@@ -313,6 +313,334 @@ server.tool(
   }
 );
 
+// New tools
+server.tool(
+  'get-video-stats',
+  'Get statistical information for a specific YouTube video (views, likes, comments, upload date, etc.)',
+  {
+    videoId: z.string().min(1)
+  },
+  async ({ videoId }) => {
+    try {
+      const videoData = await youtubeService.getVideoDetails(videoId);
+      const video = videoData.items?.[0];
+      
+      if (!video) {
+        return {
+          content: [{
+            type: 'text',
+            text: `Video with ID ${videoId} not found.`
+          }],
+          isError: true
+        };
+      }
+      
+      const stats = {
+        videoId: video.id,
+        title: video.snippet?.title,
+        publishedAt: video.snippet?.publishedAt,
+        channelTitle: video.snippet?.channelTitle,
+        viewCount: video.statistics?.viewCount,
+        likeCount: video.statistics?.likeCount,
+        commentCount: video.statistics?.commentCount,
+        duration: video.contentDetails?.duration
+      };
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(stats, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error fetching video statistics: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  'get-channel-stats',
+  'Get statistical information for a specific YouTube channel (subscriber count, total views, video count, etc.)',
+  {
+    channelId: z.string().min(1)
+  },
+  async ({ channelId }) => {
+    try {
+      const channelData = await youtubeService.getChannelDetails(channelId);
+      const channel = channelData.items?.[0];
+      
+      if (!channel) {
+        return {
+          content: [{
+            type: 'text',
+            text: `Channel with ID ${channelId} not found.`
+          }],
+          isError: true
+        };
+      }
+      
+      const stats = {
+        channelId: channel.id,
+        title: channel.snippet?.title,
+        createdAt: channel.snippet?.publishedAt,
+        subscriberCount: channel.statistics?.subscriberCount,
+        videoCount: channel.statistics?.videoCount,
+        viewCount: channel.statistics?.viewCount,
+        thumbnailUrl: channel.snippet?.thumbnails?.default?.url
+      };
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(stats, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error fetching channel statistics: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  'compare-videos',
+  'Compare statistics for multiple YouTube videos',
+  {
+    videoIds: z.array(z.string()).min(2).max(10)
+  },
+  async ({ videoIds }) => {
+    try {
+      const results = [];
+      
+      for (const videoId of videoIds) {
+        const videoData = await youtubeService.getVideoDetails(videoId);
+        const video = videoData.items?.[0];
+        
+        if (video) {
+          results.push({
+            videoId: video.id,
+            title: video.snippet?.title,
+            viewCount: Number(video.statistics?.viewCount || 0),
+            likeCount: Number(video.statistics?.likeCount || 0),
+            commentCount: Number(video.statistics?.commentCount || 0),
+            publishedAt: video.snippet?.publishedAt
+          });
+        }
+      }
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(results, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error comparing videos: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  'get-trending-videos',
+  'Retrieve trending videos by region and category. This helps analyze current popular content trends.',
+  {
+    regionCode: z.string().length(2).optional(),
+    categoryId: z.string().optional(),
+    maxResults: z.number().min(1).max(50).optional()
+  },
+  async ({ regionCode = 'US', categoryId, maxResults = 10 }) => {
+    try {
+      const response = await youtubeService.youtube.videos.list({
+        part: ['snippet', 'contentDetails', 'statistics'],
+        chart: 'mostPopular',
+        regionCode,
+        videoCategoryId: categoryId,
+        maxResults
+      });
+      
+      const trendingVideos = response.data.items?.map(video => ({
+        videoId: video.id,
+        title: video.snippet?.title,
+        channelTitle: video.snippet?.channelTitle,
+        publishedAt: video.snippet?.publishedAt,
+        viewCount: video.statistics?.viewCount,
+        likeCount: video.statistics?.likeCount,
+        commentCount: video.statistics?.commentCount
+      }));
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(trendingVideos, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error fetching trending videos: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  'get-video-categories',
+  'Retrieve available video categories for a specific region',
+  {
+    regionCode: z.string().length(2).optional()
+  },
+  async ({ regionCode = 'US' }) => {
+    try {
+      const response = await youtubeService.youtube.videoCategories.list({
+        part: ['snippet'],
+        regionCode
+      });
+      
+      const categories = response.data.items?.map(category => ({
+        id: category.id,
+        title: category.snippet?.title
+      }));
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(categories, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error fetching video categories: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  'analyze-channel-videos',
+  'Analyze recent videos from a specific channel to identify performance trends',
+  {
+    channelId: z.string().min(1),
+    maxResults: z.number().min(1).max(50).optional(),
+    sortBy: z.enum(['date', 'viewCount', 'rating']).optional()
+  },
+  async ({ channelId, maxResults = 10, sortBy = 'date' }) => {
+    try {
+      // First get all videos from the channel
+      const searchResponse = await youtubeService.youtube.search.list({
+        part: ['snippet'],
+        channelId,
+        maxResults,
+        order: sortBy,
+        type: ['video']
+      });
+      
+      // Extract videoIds and filter out any null or undefined values
+      const videoIds: string[] = searchResponse.data.items
+        ?.map(item => item.id?.videoId)
+        .filter((id): id is string => id !== null && id !== undefined) || [];
+      
+      if (videoIds.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: `No videos found for channel ${channelId}`
+          }]
+        };
+      }
+      
+      // Then get detailed stats for each video
+      const videosResponse = await youtubeService.youtube.videos.list({
+        part: ['snippet', 'statistics', 'contentDetails'],
+        id: videoIds
+      });
+      
+      interface VideoAnalysisItem {
+        videoId: string;
+        title: string | null | undefined;
+        publishedAt: string | null | undefined;
+        duration: string | null | undefined;
+        viewCount: number;
+        likeCount: number;
+        commentCount: number;
+      }
+      
+      const videoAnalysis: VideoAnalysisItem[] = videosResponse.data.items?.map(video => ({
+        videoId: video.id || '',
+        title: video.snippet?.title,
+        publishedAt: video.snippet?.publishedAt,
+        duration: video.contentDetails?.duration,
+        viewCount: Number(video.statistics?.viewCount || 0),
+        likeCount: Number(video.statistics?.likeCount || 0),
+        commentCount: Number(video.statistics?.commentCount || 0)
+      })) || [];
+      
+      // Calculate averages
+      if (videoAnalysis.length > 0) {
+        const avgViews = videoAnalysis.reduce((sum: number, video: VideoAnalysisItem) => sum + video.viewCount, 0) / videoAnalysis.length;
+        const avgLikes = videoAnalysis.reduce((sum: number, video: VideoAnalysisItem) => sum + video.likeCount, 0) / videoAnalysis.length;
+        const avgComments = videoAnalysis.reduce((sum: number, video: VideoAnalysisItem) => sum + video.commentCount, 0) / videoAnalysis.length;
+        
+        const result = {
+          channelId,
+          videoCount: videoAnalysis.length,
+          averages: {
+            viewCount: avgViews,
+            likeCount: avgLikes,
+            commentCount: avgComments
+          },
+          videos: videoAnalysis
+        };
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result, null, 2)
+          }]
+        };
+      }
+      
+      return {
+        content: [{
+          type: 'text',
+          text: `No video data available for analysis`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error analyzing channel videos: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
 // Helper function to format time in MM:SS format
 function formatTime(milliseconds: number): string {
   const totalSeconds = Math.floor(milliseconds / 1000);
