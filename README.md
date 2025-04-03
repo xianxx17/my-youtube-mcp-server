@@ -2,16 +2,17 @@
 
 [![smithery badge](https://smithery.ai/badge/@coyaSONG/youtube-mcp-server)](https://smithery.ai/server/@coyaSONG/youtube-mcp-server)
 
-A Model Context Protocol (MCP) server for interacting with YouTube data. This server provides resources and tools to query YouTube videos, channels, comments, and transcripts through stdio interface.
+A Model Context Protocol (MCP) server for interacting with YouTube data. This server provides resources and tools to query YouTube videos, channels, comments, and transcripts through a stdio interface.
 
 ## Features
 
-- Search for YouTube videos
-- Get detailed information about specific videos
-- Retrieve channel information
-- Fetch video comments
-- **Get video transcripts/captions**
-- Uses stdio for communication with clients
+- Search for YouTube videos with advanced filtering options
+- Get detailed information about specific videos and channels
+- Compare statistics across multiple videos
+- Discover trending videos by region and category
+- Analyze channel performance and video statistics
+- Retrieve video comments and transcripts/captions
+- Generate video analysis and transcript summaries
 
 ## Prerequisites
 
@@ -43,33 +44,46 @@ npx -y @smithery/cli install @coyaSONG/youtube-mcp-server --client claude
 3. Create a `.env` file in the root directory:
    ```
    YOUTUBE_API_KEY=your_youtube_api_key_here
+   PORT=3000
    ```
 
 ## Usage
 
 ### Building and Running
 
-1. 빌드하기:
+1. Build the project:
    ```bash
    npm run build
    ```
 
-2. 서버 실행:
+2. Run the server:
    ```bash
    npm start
    ```
 
-3. 개발 모드로 실행:
+3. Run in development mode:
    ```bash
    npm run dev
    ```
 
-4. 빌드 산출물 정리:
+4. Clean build artifacts:
    ```bash
    npm run clean
    ```
 
-## API
+## Docker Deployment
+
+The project includes a Dockerfile for containerized deployment:
+
+```bash
+# Build the Docker image
+docker build -t youtube-mcp-server .
+
+# Run the container
+docker run -p 3000:3000 --env-file .env youtube-mcp-server
+```
+
+## API Reference
 
 ### Resources
 
@@ -80,30 +94,65 @@ npx -y @smithery/cli install @coyaSONG/youtube-mcp-server --client claude
 
 ### Tools
 
-- `search-videos` - Search for YouTube videos based on a query
+#### Basic Tools
+- `search-videos` - Search for YouTube videos with advanced filtering options
 - `get-video-comments` - Get comments for a specific video
-- `get-video-transcript` - Get transcript for a specific video with optional language parameter
+- `get-video-transcript` - Get transcript for a specific video with optional language
+
+#### Statistical Tools
+- `get-video-stats` - Get statistical information for a specific video
+- `get-channel-stats` - Get subscriber count, view count, and other channel statistics
+- `compare-videos` - Compare statistics across multiple videos
+
+#### Discovery Tools
+- `get-trending-videos` - Retrieve trending videos by region and category
+- `get-video-categories` - Get available video categories for a specific region
+
+#### Analysis Tools
+- `analyze-channel-videos` - Analyze performance trends of videos from a specific channel
 
 ### Prompts
 
-- `video-analysis` - Prompt for analyzing a YouTube video
-- `transcript-summary` - Prompt for summarizing a video's transcript
+- `video-analysis` - Generate an analysis of a YouTube video
+- `transcript-summary` - Generate a summary of a video based on its transcript
 
 ## Examples
 
-### Accessing a video transcript
+### Accessing a Video Transcript
 
 ```
 youtube://transcript/dQw4w9WgXcQ
 ```
 
-### Getting a transcript in a specific language
+### Getting a Transcript in a Specific Language
 
 ```
 youtube://transcript/dQw4w9WgXcQ?language=en
 ```
 
-### Using the transcript summary prompt
+### Using the Statistical Tools
+
+```javascript
+// Get video statistics
+{
+  "type": "tool",
+  "name": "get-video-stats",
+  "parameters": {
+    "videoId": "dQw4w9WgXcQ"
+  }
+}
+
+// Compare multiple videos
+{
+  "type": "tool",
+  "name": "compare-videos",
+  "parameters": {
+    "videoIds": ["dQw4w9WgXcQ", "9bZkp7q19f0"]
+  }
+}
+```
+
+### Using the Transcript Summary Prompt
 
 ```javascript
 {
@@ -121,7 +170,7 @@ youtube://transcript/dQw4w9WgXcQ?language=en
 The server handles various error conditions, including:
 
 - Invalid API key
-- Video not found
+- Video or channel not found
 - Transcript not available
 - Network issues
 
