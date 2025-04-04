@@ -98,6 +98,7 @@ docker run -p 3000:3000 --env-file .env youtube-mcp-server
 - `search-videos` - Search for YouTube videos with advanced filtering options
 - `get-video-comments` - Get comments for a specific video
 - `get-video-transcript` - Get transcript for a specific video with optional language
+- `enhanced-transcript` - Advanced transcript extraction with filtering, search, and multi-video capabilities
 
 #### Statistical Tools
 - `get-video-stats` - Get statistical information for a specific video
@@ -160,6 +161,57 @@ youtube://transcript/dQw4w9WgXcQ?language=en
   "name": "transcript-summary",
   "parameters": {
     "videoId": "dQw4w9WgXcQ",
+    "language": "en"
+  }
+}
+```
+
+### Using the Enhanced Transcript Tool
+
+```javascript
+// Basic multi-video transcript extraction
+{
+  "type": "tool",
+  "name": "enhanced-transcript",
+  "parameters": {
+    "videoIds": ["dQw4w9WgXcQ", "9bZkp7q19f0"],
+    "format": "timestamped"
+  }
+}
+
+// With search and time filtering
+{
+  "type": "tool",
+  "name": "enhanced-transcript",
+  "parameters": {
+    "videoIds": ["dQw4w9WgXcQ"],
+    "filters": {
+      "timeRange": {
+        "start": 60,  // Start at 60 seconds
+        "end": 180    // End at 180 seconds
+      },
+      "search": {
+        "query": "never gonna",
+        "contextLines": 2
+      }
+    },
+    "format": "merged"
+  }
+}
+
+// With smart segmentation for easier analysis
+{
+  "type": "tool",
+  "name": "enhanced-transcript",
+  "parameters": {
+    "videoIds": ["dQw4w9WgXcQ"],
+    "filters": {
+      "segment": {
+        "count": 5,
+        "method": "smart"  // Breaks at natural pauses
+      }
+    },
+    "format": "timestamped",
     "language": "en"
   }
 }
