@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import { YouTubeService } from './youtube-service.js';
+import { TranscriptOptions } from './types/youtube-types.js';
 
 // Load environment variables
 dotenv.config();
@@ -646,6 +647,9 @@ server.tool(
   'Advanced transcript extraction tool with filtering, search, and multi-video capabilities. Provides raw transcript data for LLM analysis.',
   {
     videoIds: z.array(z.string()).min(1).max(5),
+    language: z.string().optional(),
+    format: z.enum(['raw', 'timestamped', 'merged']).optional(),
+    includeMetadata: z.boolean().optional(),
     filters: z.object({
       timeRange: z.object({
         start: z.number().min(0).optional(),
@@ -657,343 +661,44 @@ server.tool(
         contextLines: z.number().min(0).max(5).optional()
       }).optional(),
       segment: z.object({
-        count: z.number().min(1).max(10).optional(),
-        method: z.enum(['equal', 'smart']).optional()
+        method: z.enum(['equal', 'smart']).optional(),
+        count: z.number().min(1).max(10).optional()
       }).optional()
-    }).optional(),
-    language: z.string().optional(),
-    format: z.enum(['raw', 'timestamped', 'merged']).optional(),
-    includeMetadata: z.boolean().optional()
+    }).optional()
   },
-  async ({ videoIds, filters, language, format = 'timestamped', includeMetadata = true }) => {
+  async ({ videoIds, language, format, includeMetadata, filters }) => {
     try {
-      const results = [];
-      
-      // Define types for transcript related data
-      type Caption = {
-        text: string;
-        duration: number;
-        offset: number;
-        isMatch?: boolean;
+      const options: TranscriptOptions = {
+        language,
+        format,
+        includeMetadata,
+        timeRange: filters?.timeRange,
+        search: filters?.search
       };
-      
-      interface SearchMatch {
-        match: Caption;
-        matchIndex: number;
-        context: Caption[];
+
+      // Only add segment option if both method and count are provided
+      if (filters?.segment?.method && filters?.segment?.count) {
+        options.segment = {
+          method: filters.segment.method,
+          count: filters.segment.count
+        };
       }
       
-      type Segment = {
-        startTime: string;
-        endTime: string;
-        captions: Caption[];
-      };
+      // Call the enhanced transcript method
+      const transcript = await youtubeService.getEnhancedTranscript(videoIds, options);
       
-      type TranscriptResult = Caption[] | { segments: Segment[] };
-      
-      // Process each video
-      for (const videoId of videoIds) {
-        try {
-          // Get video details
-          const videoData = await youtubeService.getVideoDetails(videoId);
-          const video = videoData.items?.[0];
-          
-          if (!video) {
-            results.push({
-              videoId,
-              error: `Video not found or not accessible`
-            });
-            continue;
-          }
-          
-          // Get transcript
-          const transcriptData = await youtubeService.getTranscript(videoId, language);
-          
-          if (transcriptData.length === 0) {
-            results.push({
-              videoId,
-              error: `No transcript available for this video${language ? ` in language: ${language}` : ''}`
-            });
-            continue;
-          }
-          
-          // Apply filters if provided
-          let filteredTranscript: TranscriptResult = [...transcriptData];
-          
-          // Time range filter
-          if (filters?.timeRange) {
-            const { start, end } = filters.timeRange;
-            
-            if (start !== undefined || end !== undefined) {
-              filteredTranscript = (filteredTranscript as Caption[]).filter(caption => {
-                const captionStart = caption.offset;
-                const captionEnd = caption.offset + caption.duration;
-                
-                const afterStart = start !== undefined ? captionStart >= start * 1000 : true;
-                const beforeEnd = end !== undefined ? captionEnd <= end * 1000 : true;
-                
-                return afterStart && beforeEnd;
-              });
-            }
-          }
-          
-          // Search filter
-          let searchResults = null;
-          if (filters?.search?.query) {
-            const query = filters.search.query;
-            const caseSensitive = filters.search.caseSensitive || false;
-            const contextLines = filters.search.contextLines || 2;
-            
-            // This approach avoids the type issues
-            const captions = filteredTranscript as Caption[];
-            const matchIndices: number[] = [];
-            
-            // First find all matching captions
-            captions.forEach((caption, index) => {
-              const text = caseSensitive ? caption.text : caption.text.toLowerCase();
-              const searchQuery = caseSensitive ? query : query.toLowerCase();
-              
-              if (text.includes(searchQuery)) {
-                matchIndices.push(index);
-              }
-            });
-            
-            if (matchIndices.length > 0) {
-              // Build match objects with context
-              const searchMatches: SearchMatch[] = matchIndices.map(matchIndex => {
-                const match = captions[matchIndex];
-                const contextStart = Math.max(0, matchIndex - contextLines);
-                const contextEnd = Math.min(captions.length - 1, matchIndex + contextLines);
-                
-                const context = captions.slice(contextStart, contextEnd + 1).map(c => ({
-                  ...c,
-                  isMatch: c === match
-                }));
-                
-                return { match, matchIndex, context };
-              });
-              
-              searchResults = {
-                query: filters.search.query,
-                matchCount: searchMatches.length,
-                matches: searchMatches
-              };
-              
-              // Replace filteredTranscript with only matching segments and their context
-              const matchSegments: Caption[] = [];
-              for (const match of searchMatches) {
-                matchSegments.push(...match.context);
-              }
-              
-              // Remove duplicates by offset
-              const uniqueSegments: Caption[] = [];
-              const offsetSet = new Set<number>();
-              
-              for (const segment of matchSegments) {
-                if (!offsetSet.has(segment.offset)) {
-                  offsetSet.add(segment.offset);
-                  uniqueSegments.push(segment);
-                }
-              }
-              
-              // Sort by time
-              filteredTranscript = uniqueSegments.sort((a, b) => a.offset - b.offset);
-            } else {
-              filteredTranscript = []; // No matches found
-            }
-          }
-          
-          // Segment filter - divide transcript into equal parts
-          if (filters?.segment && (filteredTranscript as Caption[]).length > 0) {
-            const segmentCount = filters.segment.count || 5;
-            const method = filters.segment.method || 'equal';
-            
-            if (method === 'equal') {
-              // Equal time segments
-              const captions = filteredTranscript as Caption[];
-              const firstOffset = captions[0].offset;
-              const lastOffset = captions[captions.length - 1].offset + 
-                                 captions[captions.length - 1].duration;
-              const totalDuration = lastOffset - firstOffset;
-              const segmentDuration = totalDuration / segmentCount;
-              
-              const segments: Segment[] = [];
-              for (let i = 0; i < segmentCount; i++) {
-                const segmentStart = firstOffset + (i * segmentDuration);
-                const segmentEnd = segmentStart + segmentDuration;
-                
-                const segmentCaptions = captions.filter(
-                  caption => caption.offset >= segmentStart && caption.offset < segmentEnd
-                );
-                
-                if (segmentCaptions.length > 0) {
-                  segments.push({
-                    startTime: formatTime(segmentStart),
-                    endTime: formatTime(segmentEnd),
-                    captions: segmentCaptions
-                  });
-                }
-              }
-              
-              // If using segments, replace the transcript with segmented data
-              if (segments.length > 0) {
-                filteredTranscript = { segments };
-              }
-            } else if (method === 'smart') {
-              // Smart segmentation (try to break at natural boundaries)
-              // This is a simplified version that breaks at longer pauses
-              const captions = filteredTranscript as Caption[];
-              const segments: Segment[] = [];
-              let currentSegment: Caption[] = [];
-              let segmentCount = 0;
-              
-              // Find the average time gap between captions
-              let totalGap = 0;
-              let gapCount = 0;
-              
-              for (let i = 1; i < captions.length; i++) {
-                const prevEnd = captions[i-1].offset + captions[i-1].duration;
-                const currentStart = captions[i].offset;
-                const gap = currentStart - prevEnd;
-                
-                if (gap > 0) {
-                  totalGap += gap;
-                  gapCount++;
-                }
-              }
-              
-              const avgGap = gapCount > 0 ? totalGap / gapCount : 0;
-              // Use 3x average gap as a significant pause
-              const significantPause = Math.max(avgGap * 3, 1000); // At least 1 second
-              
-              currentSegment = [captions[0]];
-              
-              for (let i = 1; i < captions.length; i++) {
-                const prevEnd = captions[i-1].offset + captions[i-1].duration;
-                const currentStart = captions[i].offset;
-                const gap = currentStart - prevEnd;
-                
-                if (gap > significantPause && currentSegment.length > 0) {
-                  // End of a segment
-                  segments.push({
-                    startTime: formatTime(currentSegment[0].offset),
-                    endTime: formatTime(currentSegment[currentSegment.length-1].offset + 
-                                       currentSegment[currentSegment.length-1].duration),
-                    captions: [...currentSegment]
-                  });
-                  
-                  currentSegment = [];
-                  segmentCount++;
-                  
-                  // If we've reached the requested segment count, stop
-                  if (segmentCount >= (filters.segment.count || 5)) {
-                    break;
-                  }
-                }
-                
-                currentSegment.push(captions[i]);
-              }
-              
-              // Add the last segment if it's not empty
-              if (currentSegment.length > 0) {
-                segments.push({
-                  startTime: formatTime(currentSegment[0].offset),
-                  endTime: formatTime(currentSegment[currentSegment.length-1].offset + 
-                                     currentSegment[currentSegment.length-1].duration),
-                  captions: [...currentSegment]
-                });
-              }
-              
-              // If using segments, replace the transcript with segmented data
-              if (segments.length > 0) {
-                filteredTranscript = { segments };
-              }
-            }
-          }
-          
-          // Format the transcript based on the requested format
-          let formattedTranscript;
-          if (Array.isArray(filteredTranscript)) {
-            switch (format) {
-              case 'raw':
-                formattedTranscript = filteredTranscript;
-                break;
-              case 'timestamped':
-                formattedTranscript = filteredTranscript.map(caption => 
-                  `[${formatTime(caption.offset)}] ${caption.text}`
-                ).join('\n');
-                break;
-              case 'merged':
-                formattedTranscript = filteredTranscript.map(caption => caption.text).join(' ');
-                break;
-            }
-          } else {
-            // Handle segmented transcript
-            if (format === 'raw') {
-              formattedTranscript = filteredTranscript;
-            } else if (format === 'timestamped') {
-              formattedTranscript = (filteredTranscript as { segments: Segment[] }).segments.map((segment: Segment) => {
-                const header = `### Segment ${segment.startTime} - ${segment.endTime}\n\n`;
-                const content = segment.captions.map((caption: Caption) => 
-                  `[${formatTime(caption.offset)}] ${caption.text}`
-                ).join('\n');
-                return header + content;
-              }).join('\n\n');
-            } else { // merged
-              formattedTranscript = (filteredTranscript as { segments: Segment[] }).segments.map((segment: Segment) => {
-                const header = `### Segment ${segment.startTime} - ${segment.endTime}\n\n`;
-                const content = segment.captions.map((caption: Caption) => caption.text).join(' ');
-                return header + content;
-              }).join('\n\n');
-            }
-          }
-          
-          // Build the result
-          const result: any = {
-            videoId,
-            transcript: formattedTranscript
-          };
-          
-          // Add search results if available
-          if (searchResults) {
-            result.search = searchResults;
-          }
-          
-          // Add metadata if requested
-          if (includeMetadata) {
-            result.metadata = {
-              title: video.snippet?.title,
-              channelTitle: video.snippet?.channelTitle,
-              publishedAt: video.snippet?.publishedAt,
-              language: language || 'default',
-              captionCount: transcriptData.length,
-              filteredCaptionCount: Array.isArray(filteredTranscript) 
-                ? filteredTranscript.length 
-                : (filteredTranscript as { segments: Segment[] }).segments.reduce((count: number, segment: Segment) => 
-                    count + segment.captions.length, 0)
-            };
-          }
-          
-          results.push(result);
-        } catch (error) {
-          results.push({
-            videoId,
-            error: `Error processing video: ${error}`
-          });
-        }
-      }
-      
+      // Convert to MCP format
       return {
         content: [{
           type: 'text',
-          text: JSON.stringify(results, null, 2)
+          text: JSON.stringify(transcript, null, 2)
         }]
       };
     } catch (error) {
       return {
         content: [{
           type: 'text',
-          text: `Error processing enhanced transcript request: ${error}`
+          text: `Failed to process transcript: ${error instanceof Error ? error.message : String(error)}`
         }],
         isError: true
       };
