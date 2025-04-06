@@ -706,6 +706,127 @@ server.tool(
   }
 );
 
+server.tool(
+  'get-key-moments',
+  'Extract key moments with timestamps from a video transcript for easier navigation and summarization',
+  {
+    videoId: z.string().min(1),
+    maxMoments: z.string().optional()
+  },
+  async ({ videoId, maxMoments }) => {
+    try {
+      // 문자열 maxMoments를 숫자로 변환
+      const maxMomentsNum = maxMoments ? parseInt(maxMoments, 10) : 5;
+      
+      const keyMomentsTranscript = await youtubeService.getKeyMomentsTranscript(videoId, maxMomentsNum);
+      
+      return {
+        content: [{
+          type: 'text',
+          text: keyMomentsTranscript.text || 'No key moments found'
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error extracting key moments: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  'get-segmented-transcript',
+  'Divide a video transcript into segments for easier analysis and navigation',
+  {
+    videoId: z.string().min(1),
+    segmentCount: z.string().optional()
+  },
+  async ({ videoId, segmentCount }) => {
+    try {
+      // 문자열 segmentCount를 숫자로 변환
+      const segmentCountNum = segmentCount ? parseInt(segmentCount, 10) : 4;
+      
+      const segmentedTranscript = await youtubeService.getSegmentedTranscript(videoId, segmentCountNum);
+      
+      return {
+        content: [{
+          type: 'text',
+          text: segmentedTranscript.text || 'Failed to create segmented transcript'
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Error creating segmented transcript: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.prompt(
+  'segment-by-segment-analysis',
+  'Analyze a YouTube video segment by segment for a detailed breakdown of content',
+  {
+    videoId: z.string().min(1),
+    segmentCount: z.string().optional(),
+  },
+  async ({ videoId, segmentCount }) => {
+    try {
+      // 문자열 세그먼트 카운트를 숫자로 변환
+      const segmentCountNum = segmentCount ? parseInt(segmentCount, 10) : 4;
+      
+      // Get video details and segmented transcript
+      const videoData = await youtubeService.getVideoDetails(videoId);
+      const video = videoData.items?.[0];
+      const segmentedTranscript = await youtubeService.getSegmentedTranscript(videoId, segmentCountNum);
+      
+      if (!segmentedTranscript.text) {
+        throw new Error('Failed to generate segmented transcript');
+      }
+      
+      return {
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Please provide a segment-by-segment analysis of the following YouTube video:
+            
+Video Title: ${video?.snippet?.title || 'Unknown'}
+Channel: ${video?.snippet?.channelTitle || 'Unknown'}
+Published: ${video?.snippet?.publishedAt || 'Unknown'}
+
+${segmentedTranscript.text}
+
+For each segment, please provide:
+1. A brief summary of the key points and information presented
+2. Any important quotes or statements
+3. How this segment connects to the overall topic of the video
+
+Conclude with a brief overall summary that ties together the main themes across all segments.`
+          }
+        }]
+      };
+    } catch (error) {
+      return {
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Error creating segment analysis prompt: ${error}`
+          }
+        }]
+      };
+    }
+  }
+);
+
 // Helper function to format time in MM:SS format
 function formatTime(milliseconds: number): string {
   const totalSeconds = Math.floor(milliseconds / 1000);
@@ -734,13 +855,19 @@ server.prompt(
 
 server.prompt(
   'transcript-summary',
-  'Generate a summary of a YouTube video based on its transcript content',
+  'Generate a summary of a YouTube video based on its transcript content with customizable options',
   {
     videoId: z.string().min(1),
-    language: z.string().optional()
+    language: z.string().optional(),
+    summaryLength: z.string().optional(),
+    includeKeywords: z.string().optional(),
   },
-  async ({ videoId, language }) => {
+  async ({ videoId, language, summaryLength, includeKeywords }) => {
     try {
+      // Set defaults
+      const finalSummaryLength = summaryLength || 'medium';
+      const shouldIncludeKeywords = includeKeywords === 'true';
+      
       // Get video details and transcript
       const videoData = await youtubeService.getVideoDetails(videoId);
       const video = videoData.items?.[0];
@@ -749,12 +876,41 @@ server.prompt(
       // Format transcript text
       const transcriptText = transcriptData.map(caption => caption.text).join(' ');
       
+      // Define summary instructions based on length
+      let summaryInstructions = '';
+      switch(finalSummaryLength) {
+        case 'short':
+          summaryInstructions = `Please provide a brief summary of this video in 3-5 sentences that captures the main idea.`;
+          break;
+        case 'detailed':
+          summaryInstructions = `Please provide a comprehensive summary of this video, including:
+1. A detailed overview of the main topics (at least 3-4 paragraphs)
+2. All important details, facts, and arguments presented
+3. The structure of the content and how ideas are developed
+4. The overall tone, style, and intended audience of the content
+5. Any conclusions or calls to action mentioned`;
+          break;
+        case 'medium':
+        default:
+          summaryInstructions = `Please provide:
+1. A concise summary of the main topics and key points
+2. Important details or facts presented
+3. The overall tone and style of the content`;
+          break;
+      }
+      
+      // Add keywords extraction if requested
+      if (shouldIncludeKeywords) {
+        summaryInstructions += `\n\nAlso extract and list 5-10 key topics, themes, or keywords from the content in the format:
+KEY TOPICS: [comma-separated list of key topics/keywords]`;
+      }
+      
       return {
         messages: [{
           role: 'user',
           content: {
             type: 'text',
-            text: `Please provide a comprehensive summary of the following YouTube video transcript.
+            text: `Please provide a ${finalSummaryLength} summary of the following YouTube video transcript.
             
 Video Title: ${video?.snippet?.title || 'Unknown'}
 Channel: ${video?.snippet?.channelTitle || 'Unknown'}
@@ -763,10 +919,7 @@ Published: ${video?.snippet?.publishedAt || 'Unknown'}
 Transcript:
 ${transcriptText}
 
-Please provide:
-1. A concise summary of the main topics and key points
-2. Important details or facts presented
-3. The overall tone and style of the content`
+${summaryInstructions}`
           }
         }]
       };

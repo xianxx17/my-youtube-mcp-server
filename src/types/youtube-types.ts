@@ -28,6 +28,13 @@ export interface TranscriptOptions {
   includeMetadata?: boolean;
 }
 
+export interface TranscriptSummaryOptions {
+  summaryLength?: 'short' | 'medium' | 'detailed';
+  includeKeywords?: boolean;
+  includeTimestamps?: boolean;
+  segmentSummaries?: boolean;
+}
+
 export interface VideoMetadata {
   id?: string | null;
   title?: string | null;

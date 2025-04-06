@@ -99,6 +99,8 @@ docker run -p 3000:3000 --env-file .env youtube-mcp-server
 - `get-video-comments` - Get comments for a specific video
 - `get-video-transcript` - Get transcript for a specific video with optional language
 - `enhanced-transcript` - Advanced transcript extraction with filtering, search, and multi-video capabilities
+- `get-key-moments` - Extract key moments with timestamps from a video transcript for easier navigation
+- `get-segmented-transcript` - Divide a video transcript into segments for easier analysis
 
 #### Statistical Tools
 - `get-video-stats` - Get statistical information for a specific video
@@ -115,7 +117,8 @@ docker run -p 3000:3000 --env-file .env youtube-mcp-server
 ### Prompts
 
 - `video-analysis` - Generate an analysis of a YouTube video
-- `transcript-summary` - Generate a summary of a video based on its transcript
+- `transcript-summary` - Generate a summary of a video based on its transcript with customizable length and keywords extraction
+- `segment-by-segment-analysis` - Provide detailed breakdown of content by analyzing each segment of the video
 
 ## Examples
 
@@ -213,6 +216,52 @@ youtube://transcript/dQw4w9WgXcQ?language=en
     },
     "format": "timestamped",
     "language": "en"
+  }
+}
+```
+
+### Using the Enhanced Transcript Analysis Features
+
+```javascript
+// Get key moments from a video
+{
+  "type": "tool",
+  "name": "get-key-moments",
+  "parameters": {
+    "videoId": "dQw4w9WgXcQ",
+    "maxMoments": "5"
+  }
+}
+
+// Get a segmented transcript
+{
+  "type": "tool",
+  "name": "get-segmented-transcript",
+  "parameters": {
+    "videoId": "dQw4w9WgXcQ",
+    "segmentCount": "4"
+  }
+}
+
+// Get a segment-by-segment analysis
+{
+  "type": "prompt",
+  "name": "segment-by-segment-analysis",
+  "parameters": {
+    "videoId": "dQw4w9WgXcQ",
+    "segmentCount": "4"
+  }
+}
+
+// Get customized transcript summary
+{
+  "type": "prompt",
+  "name": "transcript-summary",
+  "parameters": {
+    "videoId": "dQw4w9WgXcQ",
+    "language": "en",
+    "summaryLength": "detailed",
+    "includeKeywords": "true"
   }
 }
 ```

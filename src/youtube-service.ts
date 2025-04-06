@@ -381,11 +381,213 @@ export class YouTubeService {
     return result;
   }
   
+  /**
+   * Extracts key moments from a transcript based on content analysis
+   * @param videoId Video ID to analyze
+   * @param maxMoments Maximum number of key moments to extract
+   * @returns A formatted transcript with key moments and their timestamps
+   */
+  async getKeyMomentsTranscript(
+    videoId: string,
+    maxMoments: number = 5
+  ): Promise<FormattedTranscript> {
+    try {
+      // Get full transcript
+      const transcriptData = await this.getTranscript(videoId);
+      
+      // Get video details for title and other metadata
+      const videoData = await this.getVideoDetails(videoId);
+      const video = videoData.items?.[0];
+      
+      if (!transcriptData.length) {
+        throw new Error('No transcript available for this video');
+      }
+      
+      // Convert to paragraph chunks to better identify key moments
+      const paragraphs: { text: string; startTime: number; endTime: number }[] = [];
+      let currentParagraph = '';
+      let startTime = 0;
+      
+      // Group segments into logical paragraphs (simple approach: group 5-8 segments together)
+      const paragraphSize = Math.max(5, Math.min(8, Math.floor(transcriptData.length / 15)));
+      
+      for (let i = 0; i < transcriptData.length; i++) {
+        const segment = transcriptData[i];
+        
+        if (i % paragraphSize === 0) {
+          if (currentParagraph) {
+            paragraphs.push({
+              text: currentParagraph.trim(),
+              startTime,
+              endTime: segment.offset / 1000
+            });
+          }
+          currentParagraph = segment.text;
+          startTime = segment.offset / 1000;
+        } else {
+          currentParagraph += ' ' + segment.text;
+        }
+      }
+      
+      // Add the last paragraph
+      if (currentParagraph) {
+        const lastSegment = transcriptData[transcriptData.length - 1];
+        paragraphs.push({
+          text: currentParagraph.trim(),
+          startTime,
+          endTime: (lastSegment.offset + lastSegment.duration) / 1000
+        });
+      }
+      
+      // Identify key moments (simple approach: paragraphs with the most content)
+      // In a real implementation, this would use NLP to identify important moments
+      const keyMoments = paragraphs
+        .filter(p => p.text.length > 100) // Filter out short paragraphs
+        .sort((a, b) => b.text.length - a.text.length) // Sort by length (simple heuristic)
+        .slice(0, maxMoments); // Take only the top N moments
+      
+      // Create formatted output
+      const title = video?.snippet?.title || 'Video Transcript';
+      let formattedText = `# Key Moments in: ${title}\n\n`;
+      
+      keyMoments.forEach((moment, index) => {
+        const timeFormatted = this.formatTimestamp(moment.startTime * 1000);
+        formattedText += `## Key Moment ${index + 1} [${timeFormatted}]\n${moment.text}\n\n`;
+      });
+      
+      // Add full transcript at the end
+      formattedText += `\n# Full Transcript\n\n`;
+      formattedText += transcriptData.map(segment => 
+        `[${this.formatTimestamp(segment.offset)}] ${segment.text}`
+      ).join('\n');
+      
+      return {
+        segments: transcriptData,
+        totalSegments: transcriptData.length,
+        duration: (transcriptData[transcriptData.length - 1].offset + 
+                 transcriptData[transcriptData.length - 1].duration) / 1000,
+        format: 'timestamped',
+        text: formattedText,
+        metadata: video ? [{
+          id: video.id,
+          title: video.snippet?.title,
+          channelId: video.snippet?.channelId,
+          channelTitle: video.snippet?.channelTitle,
+          publishedAt: video.snippet?.publishedAt,
+          duration: video.contentDetails?.duration,
+          viewCount: video.statistics?.viewCount,
+          likeCount: video.statistics?.likeCount
+        }] : undefined
+      };
+    } catch (error) {
+      console.error('Error getting key moments transcript:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Divides a video transcript into segments and prepares it for segment-by-segment analysis
+   * @param videoId Video ID to segment
+   * @param segmentCount Number of segments to divide the transcript into
+   * @returns A formatted transcript with segments marked by timestamps
+   */
+  async getSegmentedTranscript(
+    videoId: string,
+    segmentCount: number = 4
+  ): Promise<FormattedTranscript> {
+    try {
+      // Get full transcript
+      const transcriptData = await this.getTranscript(videoId);
+      
+      // Get video details for title and other metadata
+      const videoData = await this.getVideoDetails(videoId);
+      const video = videoData.items?.[0];
+      
+      if (!transcriptData.length) {
+        throw new Error('No transcript available for this video');
+      }
+      
+      // Calculate total duration
+      const lastSegment = transcriptData[transcriptData.length - 1];
+      const totalDuration = (lastSegment.offset + lastSegment.duration) / 1000; // in seconds
+      
+      // Calculate segment size
+      const segmentDuration = totalDuration / segmentCount;
+      const segments: {
+        startTime: number;
+        endTime: number;
+        text: string;
+        transcriptSegments: TranscriptSegment[];
+      }[] = [];
+      
+      // Create segments
+      for (let i = 0; i < segmentCount; i++) {
+        const startTime = i * segmentDuration;
+        const endTime = (i + 1) * segmentDuration;
+        
+        // Find all transcript segments that fall within this time range
+        const segmentTranscript = transcriptData.filter(segment => {
+          const segmentStartTime = segment.offset / 1000;
+          const segmentEndTime = (segment.offset + segment.duration) / 1000;
+          return segmentStartTime >= startTime && segmentStartTime < endTime;
+        });
+        
+        if (segmentTranscript.length > 0) {
+          segments.push({
+            startTime,
+            endTime,
+            text: segmentTranscript.map(s => s.text).join(' '),
+            transcriptSegments: segmentTranscript
+          });
+        }
+      }
+      
+      // Create formatted output
+      const title = video?.snippet?.title || 'Video Transcript';
+      let formattedText = `# Segmented Transcript: ${title}\n\n`;
+      
+      segments.forEach((segment, index) => {
+        const startTimeFormatted = this.formatTimestamp(segment.startTime * 1000);
+        const endTimeFormatted = this.formatTimestamp(segment.endTime * 1000);
+        
+        formattedText += `## Segment ${index + 1} [${startTimeFormatted} - ${endTimeFormatted}]\n\n`;
+        
+        // Add transcript for this segment
+        formattedText += segment.transcriptSegments.map(s => 
+          `[${this.formatTimestamp(s.offset)}] ${s.text}`
+        ).join('\n');
+        
+        formattedText += '\n\n';
+      });
+      
+      return {
+        segments: transcriptData,
+        totalSegments: transcriptData.length,
+        duration: totalDuration,
+        format: 'timestamped',
+        text: formattedText,
+        metadata: video ? [{
+          id: video.id,
+          title: video.snippet?.title,
+          channelId: video.snippet?.channelId,
+          channelTitle: video.snippet?.channelTitle,
+          publishedAt: video.snippet?.publishedAt,
+          duration: video.contentDetails?.duration,
+          viewCount: video.statistics?.viewCount,
+          likeCount: video.statistics?.likeCount
+        }] : undefined
+      };
+    } catch (error) {
+      console.error('Error creating segmented transcript:', error);
+      throw error;
+    }
+  }
+  
   private formatTimestamp(milliseconds: number): string {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
   
   private generateTranscriptCacheKey(videoId: string, options: TranscriptOptions): string {
