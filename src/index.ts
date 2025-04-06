@@ -282,7 +282,7 @@ server.tool(
 
 server.tool(
   'get-video-transcript',
-  'Get the transcript/captions for a YouTube video with optional language selection',
+  'Get the transcript/captions for a YouTube video with optional language selection. This tool retrieves the full transcript of a video with timestamped captions. Each caption includes the text and its timestamp in the video. Parameters: videoId (required) - The YouTube video ID; language (optional) - Language code for the transcript (e.g., "en", "ko", "ja"). If not specified, the default language for the video will be used. Returns a text with each caption line preceded by its timestamp.',
   {
     videoId: z.string().min(1),
     language: z.string().optional()
@@ -644,7 +644,7 @@ server.tool(
 
 server.tool(
   'enhanced-transcript',
-  'Advanced transcript extraction tool with filtering, search, and multi-video capabilities. Provides raw transcript data for LLM analysis.',
+  'Advanced transcript extraction tool with filtering, search, and multi-video capabilities. Provides rich transcript data for detailed analysis and processing. This tool offers multiple advanced features: 1) Extract transcripts from multiple videos in one request; 2) Filter by time ranges to focus on specific parts; 3) Search for specific content within transcripts; 4) Segment transcripts for structural analysis; 5) Format output in different ways (raw, timestamped, merged text); 6) Include video metadata. Parameters: videoIds (required) - Array of YouTube video IDs (up to 5); language (optional) - Language code; format (optional) - Output format ("raw", "timestamped", "merged"); includeMetadata (optional) - Whether to include video details; filters (optional) - Complex filtering options including timeRange, search, and segment.',
   {
     videoIds: z.array(z.string()).min(1).max(5),
     language: z.string().optional(),
@@ -708,7 +708,7 @@ server.tool(
 
 server.tool(
   'get-key-moments',
-  'Extract key moments with timestamps from a video transcript for easier navigation and summarization',
+  'Extract key moments with timestamps from a video transcript for easier navigation and summarization. This tool analyzes the video transcript to identify important segments based on content density and creates a structured output with timestamped key moments. Useful for quickly navigating to important parts of longer videos. Parameters: videoId (required) - The YouTube video ID; maxMoments (optional) - Number of key moments to extract (default: 5, max: 10). Returns a formatted text with key moments and their timestamps, plus the full transcript.',
   {
     videoId: z.string().min(1),
     maxMoments: z.string().optional()
@@ -740,7 +740,7 @@ server.tool(
 
 server.tool(
   'get-segmented-transcript',
-  'Divide a video transcript into segments for easier analysis and navigation',
+  'Divide a video transcript into segments for easier analysis and navigation. This tool splits the video into equal time segments and extracts the transcript for each segment with proper timestamps. Ideal for analyzing the structure of longer videos or when you need to focus on specific parts of the content. Parameters: videoId (required) - The YouTube video ID; segmentCount (optional) - Number of segments to divide the video into (default: 4, max: 10). Returns a markdown-formatted text with each segment clearly labeled with time ranges and containing the relevant transcript text.',
   {
     videoId: z.string().min(1),
     segmentCount: z.string().optional()
@@ -772,7 +772,7 @@ server.tool(
 
 server.prompt(
   'segment-by-segment-analysis',
-  'Analyze a YouTube video segment by segment for a detailed breakdown of content',
+  'Analyze a YouTube video segment by segment for a detailed breakdown of content. This prompt divides the video into the specified number of segments and provides a comprehensive analysis of each part. Particularly useful for longer videos where the content changes throughout or for educational videos with multiple topics. The analysis includes key points, important quotes, and how each segment connects to the overall theme. Parameters: videoId (required) - The YouTube video ID; segmentCount (optional) - Number of segments to divide the video into (default: 4, range: 2-8).',
   {
     videoId: z.string().min(1),
     segmentCount: z.string().optional(),
@@ -855,7 +855,7 @@ server.prompt(
 
 server.prompt(
   'transcript-summary',
-  'Generate a summary of a YouTube video based on its transcript content with customizable options',
+  'Generate a summary of a YouTube video based on its transcript content with customizable options. This prompt provides different summary levels from brief overviews to detailed analyses, and can extract key topics from the content. Optimal for quickly understanding video content without watching the entire video. Parameters: videoId (required) - The YouTube video ID; language (optional) - Language code for transcript (e.g., "en", "ko"); summaryLength (optional) - Level of detail in summary ("short", "medium", or "detailed", default: "medium"); includeKeywords (optional) - Whether to extract key topics (set to "true" to enable).',
   {
     videoId: z.string().min(1),
     language: z.string().optional(),
