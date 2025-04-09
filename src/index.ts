@@ -131,14 +131,14 @@ server.resource(
       // Parse parameters from the URL
       const url = new URL(uri.href);
       const language = url.searchParams.get('language');
-      
+
       // Ensure videoId is a string, not an array
       const videoIdStr = Array.isArray(videoId) ? videoId[0] : videoId;
-      
+
       // Get video details for metadata
       const videoData = await youtubeService.getVideoDetails(videoIdStr);
       const video = videoData.items?.[0];
-      
+
       if (!video) {
         return {
           contents: [{
@@ -147,16 +147,16 @@ server.resource(
           }]
         };
       }
-      
+
       try {
         // Get transcript
         const transcriptData = await youtubeService.getTranscript(videoIdStr, language || undefined);
-        
+
         // Format the transcript with timestamps
-        const formattedTranscript = transcriptData.map(caption => 
+        const formattedTranscript = transcriptData.map(caption =>
           `[${formatTime(caption.offset)}] ${caption.text}`
         ).join('\n');
-        
+
         // Create metadata
         const metadata = {
           videoId: video.id,
@@ -165,7 +165,7 @@ server.resource(
           language: language || 'default',
           captionCount: transcriptData.length
         };
-        
+
         return {
           contents: [{
             uri: uri.href,
@@ -232,7 +232,7 @@ server.tool(
         videoDefinition,
         regionCode
       });
-      
+
       return {
         content: [{
           type: 'text',
@@ -253,15 +253,22 @@ server.tool(
 
 server.tool(
   'get-video-comments',
-  'Retrieve comments for a specific YouTube video',
+  'Retrieve comments for a specific YouTube video with sorting options',
   {
     videoId: z.string().min(1),
-    maxResults: z.number().min(1).max(100).optional()
+    maxResults: z.number().min(1).max(100).optional(),
+    order: z.enum(['time', 'relevance']).optional(),
+    includeReplies: z.boolean().optional(),
+    pageToken: z.string().optional()
   },
-  async ({ videoId, maxResults = 20 }) => {
+  async ({ videoId, maxResults = 20, order = 'relevance', includeReplies = false, pageToken }) => {
     try {
-      const commentsData = await youtubeService.getComments(videoId, maxResults);
-      
+      const commentsData = await youtubeService.getComments(videoId, maxResults, {
+        order,
+        includeReplies,
+        pageToken
+      });
+
       return {
         content: [{
           type: 'text',
@@ -290,12 +297,12 @@ server.tool(
   async ({ videoId, language }) => {
     try {
       const transcriptData = await youtubeService.getTranscript(videoId, language);
-      
+
       // Optionally format the transcript for better readability
-      const formattedTranscript = transcriptData.map(caption => 
+      const formattedTranscript = transcriptData.map(caption =>
         `[${formatTime(caption.offset)}] ${caption.text}`
       ).join('\n');
-      
+
       return {
         content: [{
           type: 'text',
@@ -325,7 +332,7 @@ server.tool(
     try {
       const videoData = await youtubeService.getVideoDetails(videoId);
       const video = videoData.items?.[0];
-      
+
       if (!video) {
         return {
           content: [{
@@ -335,7 +342,7 @@ server.tool(
           isError: true
         };
       }
-      
+
       const stats = {
         videoId: video.id,
         title: video.snippet?.title,
@@ -346,7 +353,7 @@ server.tool(
         commentCount: video.statistics?.commentCount,
         duration: video.contentDetails?.duration
       };
-      
+
       return {
         content: [{
           type: 'text',
@@ -375,7 +382,7 @@ server.tool(
     try {
       const channelData = await youtubeService.getChannelDetails(channelId);
       const channel = channelData.items?.[0];
-      
+
       if (!channel) {
         return {
           content: [{
@@ -385,7 +392,7 @@ server.tool(
           isError: true
         };
       }
-      
+
       const stats = {
         channelId: channel.id,
         title: channel.snippet?.title,
@@ -395,7 +402,7 @@ server.tool(
         viewCount: channel.statistics?.viewCount,
         thumbnailUrl: channel.snippet?.thumbnails?.default?.url
       };
-      
+
       return {
         content: [{
           type: 'text',
@@ -423,11 +430,11 @@ server.tool(
   async ({ videoIds }) => {
     try {
       const results = [];
-      
+
       for (const videoId of videoIds) {
         const videoData = await youtubeService.getVideoDetails(videoId);
         const video = videoData.items?.[0];
-        
+
         if (video) {
           results.push({
             videoId: video.id,
@@ -439,7 +446,7 @@ server.tool(
           });
         }
       }
-      
+
       return {
         content: [{
           type: 'text',
@@ -475,7 +482,7 @@ server.tool(
         videoCategoryId: categoryId,
         maxResults
       });
-      
+
       const trendingVideos = response.data.items?.map(video => ({
         videoId: video.id,
         title: video.snippet?.title,
@@ -485,7 +492,7 @@ server.tool(
         likeCount: video.statistics?.likeCount,
         commentCount: video.statistics?.commentCount
       }));
-      
+
       return {
         content: [{
           type: 'text',
@@ -516,12 +523,12 @@ server.tool(
         part: ['snippet'],
         regionCode
       });
-      
+
       const categories = response.data.items?.map(category => ({
         id: category.id,
         title: category.snippet?.title
       }));
-      
+
       return {
         content: [{
           type: 'text',
@@ -558,12 +565,12 @@ server.tool(
         order: sortBy,
         type: ['video']
       });
-      
+
       // Extract videoIds and filter out any null or undefined values
       const videoIds: string[] = searchResponse.data.items
         ?.map(item => item.id?.videoId)
         .filter((id): id is string => id !== null && id !== undefined) || [];
-      
+
       if (videoIds.length === 0) {
         return {
           content: [{
@@ -572,13 +579,13 @@ server.tool(
           }]
         };
       }
-      
+
       // Then get detailed stats for each video
       const videosResponse = await youtubeService.youtube.videos.list({
         part: ['snippet', 'statistics', 'contentDetails'],
         id: videoIds
       });
-      
+
       interface VideoAnalysisItem {
         videoId: string;
         title: string | null | undefined;
@@ -588,7 +595,7 @@ server.tool(
         likeCount: number;
         commentCount: number;
       }
-      
+
       const videoAnalysis: VideoAnalysisItem[] = videosResponse.data.items?.map(video => ({
         videoId: video.id || '',
         title: video.snippet?.title,
@@ -598,13 +605,13 @@ server.tool(
         likeCount: Number(video.statistics?.likeCount || 0),
         commentCount: Number(video.statistics?.commentCount || 0)
       })) || [];
-      
+
       // Calculate averages
       if (videoAnalysis.length > 0) {
         const avgViews = videoAnalysis.reduce((sum: number, video: VideoAnalysisItem) => sum + video.viewCount, 0) / videoAnalysis.length;
         const avgLikes = videoAnalysis.reduce((sum: number, video: VideoAnalysisItem) => sum + video.likeCount, 0) / videoAnalysis.length;
         const avgComments = videoAnalysis.reduce((sum: number, video: VideoAnalysisItem) => sum + video.commentCount, 0) / videoAnalysis.length;
-        
+
         const result = {
           channelId,
           videoCount: videoAnalysis.length,
@@ -615,7 +622,7 @@ server.tool(
           },
           videos: videoAnalysis
         };
-        
+
         return {
           content: [{
             type: 'text',
@@ -623,7 +630,7 @@ server.tool(
           }]
         };
       }
-      
+
       return {
         content: [{
           type: 'text',
@@ -683,10 +690,10 @@ server.tool(
           count: filters.segment.count
         };
       }
-      
+
       // Call the enhanced transcript method
       const transcript = await youtubeService.getEnhancedTranscript(videoIds, options);
-      
+
       // Convert to MCP format
       return {
         content: [{
@@ -717,9 +724,9 @@ server.tool(
     try {
       // 문자열 maxMoments를 숫자로 변환
       const maxMomentsNum = maxMoments ? parseInt(maxMoments, 10) : 5;
-      
+
       const keyMomentsTranscript = await youtubeService.getKeyMomentsTranscript(videoId, maxMomentsNum);
-      
+
       return {
         content: [{
           type: 'text',
@@ -749,9 +756,9 @@ server.tool(
     try {
       // 문자열 segmentCount를 숫자로 변환
       const segmentCountNum = segmentCount ? parseInt(segmentCount, 10) : 4;
-      
+
       const segmentedTranscript = await youtubeService.getSegmentedTranscript(videoId, segmentCountNum);
-      
+
       return {
         content: [{
           type: 'text',
@@ -781,23 +788,23 @@ server.prompt(
     try {
       // 문자열 세그먼트 카운트를 숫자로 변환
       const segmentCountNum = segmentCount ? parseInt(segmentCount, 10) : 4;
-      
+
       // Get video details and segmented transcript
       const videoData = await youtubeService.getVideoDetails(videoId);
       const video = videoData.items?.[0];
       const segmentedTranscript = await youtubeService.getSegmentedTranscript(videoId, segmentCountNum);
-      
+
       if (!segmentedTranscript.text) {
         throw new Error('Failed to generate segmented transcript');
       }
-      
+
       return {
         messages: [{
           role: 'user',
           content: {
             type: 'text',
             text: `Please provide a segment-by-segment analysis of the following YouTube video:
-            
+
 Video Title: ${video?.snippet?.title || 'Unknown'}
 Channel: ${video?.snippet?.channelTitle || 'Unknown'}
 Published: ${video?.snippet?.publishedAt || 'Unknown'}
@@ -867,15 +874,15 @@ server.prompt(
       // Set defaults
       const finalSummaryLength = summaryLength || 'medium';
       const shouldIncludeKeywords = includeKeywords === 'true';
-      
+
       // Get video details and transcript
       const videoData = await youtubeService.getVideoDetails(videoId);
       const video = videoData.items?.[0];
       const transcriptData = await youtubeService.getTranscript(videoId, language);
-      
+
       // Format transcript text
       const transcriptText = transcriptData.map(caption => caption.text).join(' ');
-      
+
       // Define summary instructions based on length
       let summaryInstructions = '';
       switch(finalSummaryLength) {
@@ -898,20 +905,20 @@ server.prompt(
 3. The overall tone and style of the content`;
           break;
       }
-      
+
       // Add keywords extraction if requested
       if (shouldIncludeKeywords) {
         summaryInstructions += `\n\nAlso extract and list 5-10 key topics, themes, or keywords from the content in the format:
 KEY TOPICS: [comma-separated list of key topics/keywords]`;
       }
-      
+
       return {
         messages: [{
           role: 'user',
           content: {
             type: 'text',
             text: `Please provide a ${finalSummaryLength} summary of the following YouTube video transcript.
-            
+
 Video Title: ${video?.snippet?.title || 'Unknown'}
 Channel: ${video?.snippet?.channelTitle || 'Unknown'}
 Published: ${video?.snippet?.publishedAt || 'Unknown'}
@@ -942,4 +949,4 @@ const transport = new StdioServerTransport();
 
 // Start the server with stdio transport
 console.error('Starting YouTube MCP Server with stdio transport...');
-await server.connect(transport); 
+await server.connect(transport);
