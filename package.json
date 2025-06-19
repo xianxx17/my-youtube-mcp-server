@@ -1,5 +1,5 @@
 {
-  "name": "@coyasong/youtube-mcp-server",
+  "name": "@xianxx17/youtube-mcp-server",
   "version": "1.0.0",
   "main": "dist/index.js",
   "type": "module",
@@ -15,15 +15,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/coyaSONG/youtube-mcp-server.git"
+    "url": "git+https://github.com/xianxx17/my-youtube-mcp-server.git"
   },
   "keywords": [],
-  "author": "coyaSONG",
+  "author": "xianxx17",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/coyaSONG/youtube-mcp-server/issues"
+    "url": "https://github.com/xianxx17/my-youtube-mcp-server/issues"
   },
-  "homepage": "https://github.com/coyaSONG/youtube-mcp-server#readme",
+  "homepage": "https://github.com/xianxx17/my-youtube-mcp-server#readme",
   "description": "",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.9.0",
